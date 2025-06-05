@@ -14,7 +14,7 @@ public class TrapController : MonoBehaviour
     void Start()
     {
         if (trap == null)
-            trap = transform.GetChild(0).gameObject;
+            trap = transform.Find("Trap").gameObject;
         rb = trap.GetComponent<Rigidbody2D>();
         trap.SetActive(false);
     }

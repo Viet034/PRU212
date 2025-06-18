@@ -4,213 +4,148 @@ using UnityEngine.InputSystem;
 
 public class PlayerControllerr : MonoBehaviour
 {
-    //[Header("Movement Settings")]
-    //public float moveSpeed = 5f;
-    //public float jumpForce = 5f;
-
-    //[Header("Ground Check Settings")]
-    //public Transform groundCheck;
-    //public float groundCheckRadius = 0.1f;
-    //public LayerMask groundLayer;
-
-    //[Header("Checkpoint Settings")]
-    //public Vector2 checkpointPosition;
-
-    //private Rigidbody2D rb;
-    //private bool isGrounded;
-    //private bool isDead = false;
-
-    //// Sự kiện thông báo khi nhân vật chết
-    //public static event Action OnPlayerDeath;
-
-    //void Awake()
-    //{
-    //    rb = GetComponent<Rigidbody2D>();
-    //    checkpointPosition = transform.position; // Đặt checkpoint ban đầu
-    //}
-
-    //void Update()
-    //{
-    //    // Kiểm tra chạm đất
-    //    Collider2D[] colliders = Physics2D.OverlapCircleAll(groundCheck.position, groundCheckRadius, groundLayer);
-    //    isGrounded = false;
-    //    foreach (var collider in colliders)
-    //    {
-    //        if (collider.gameObject != gameObject)
-    //        {
-    //            isGrounded = true;
-    //            break;
-    //        }
-    //    }
-
-    //    if (!isDead)
-    //    {
-    //        HandleMovement();
-
-    //    }
-    //}
-
-    //void HandleMovement()
-    //{
-    //    if (Keyboard.current == null)
-    //        return;
-
-    //    float moveInput = 0f;
-    //    if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed)
-    //    {
-    //        moveInput = -1f;
-    //    }
-    //    else if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)
-    //    {
-    //        moveInput = 1f;
-    //    }
-
-    //    rb.linearVelocity = new Vector2(moveInput * moveSpeed, rb.linearVelocity.y);
-    //}
-
-    //public void OnJump(InputValue value)
-    //{
-    //    if (value.isPressed && isGrounded)  // Chỉ nhảy khi chạm đất
-    //    {
-    //        rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-    //        isGrounded = false; // Đặt false ngay sau khi nhảy
-    //    }
-    //}
-
-    //void OnTriggerEnter2D(Collider2D other)
-    //{
-    //    if (other.CompareTag("Trap") || other.CompareTag("Lava"))
-    //    {
-    //        Die();
-    //    }
-    //}
-
-    //void OnCollisionEnter2D(Collision2D collision)
-    //{
-    //    if (collision.gameObject.CompareTag("Trap"))
-    //    {
-    //        Die();
-    //    }
-    //}
-
-    //void Die()
-    //{
-    //    if (!isDead)
-    //    {
-    //        isDead = true;
-    //        Debug.Log("Player died!");
-    //        OnPlayerDeath?.Invoke(); // Kích hoạt sự kiện để thông báo cho bẫy
-    //        transform.position = checkpointPosition;
-    //        rb.linearVelocity = Vector2.zero;
-    //        isDead = false;
-    //    }
-    //}
-
-    //public void SetCheckpoint(Vector2 newCheckpoint)
-    //{
-    //    checkpointPosition = newCheckpoint;
-    //    Debug.Log("Checkpoint updated: " + newCheckpoint);
-    //}
-
-    //void OnDrawGizmosSelected()
-    //{
-    //    if (groundCheck != null)
-    //    {
-    //        Gizmos.color = Color.green;
-    //        Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
-    //    }
-    //}
-    //private void OnCollisionExit2D(Collision2D collision)
-    //{
-    //    if (collision.gameObject.CompareTag("Ground"))
-    //    {
-    //        isGrounded = false;
-    //    }
-    //}
-    public static event Action OnPlayerDeath; // Sự kiện nếu bạn muốn thông báo ra ngoài
+    public static event Action OnPlayerDeath;
 
     private Rigidbody2D rb;
     private Vector2 moveInput;
     private bool isDead = false;
+    private bool isGrounded = false;
+    private bool isControlInverted = false;
+
+    [Header("Movement Settings")]
     public float moveSpeed = 5f;
     public float jumpForce = 10f;
     public float maxJumpVelocity = 12f;
-    public Vector2 checkpointPosition;
-    private bool isGrounded = false;  // Thêm biến kiểm tra chạm đất
 
+    [Header("Checkpoint Settings")]
+    public Vector2 checkpointPosition;
+    private Animator animator;
+
+    private bool isBouncing = false;
+    private float bounceCooldown = 0.2f; // 0.2s không bị override velocity
+    private float bounceTimer = 0f;
     private void Awake()
     {
+        animator = GetComponent<Animator>();
         rb = GetComponent<Rigidbody2D>();
-        rb = GetComponent<Rigidbody2D>();
-        checkpointPosition = transform.position; // Đặt checkpoint ban đầu
+        checkpointPosition = transform.position; // Lưu checkpoint ban đầu
     }
 
     private void Update()
     {
+        // Áp dụng di chuyển
         rb.linearVelocity = new Vector2(moveInput.x * moveSpeed, rb.linearVelocity.y);
 
+        // Giới hạn vận tốc nhảy tối đa
         if (rb.linearVelocity.y > maxJumpVelocity)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, maxJumpVelocity);
         }
 
+        // 👉 Flip nhân vật theo hướng di chuyển (nếu có di chuyển)
+        if (moveInput.x > 0.01f)
+        {
+            transform.localScale = new Vector3(4, 5, 1); // Quay mặt phải
+        }
+        else if (moveInput.x < -0.01f)
+        {
+            transform.localScale = new Vector3(-4, 5, 1); // Quay mặt trái
+        }
+        UpdateAnimation();
+
     }
 
     public void OnMove(InputValue value)
     {
-        moveInput = value.Get<Vector2>();
+        Vector2 input = value.Get<Vector2>();
+
+        // Đảo chiều nếu bị invert
+        if (isControlInverted)
+        {
+            input.x = -input.x;
+        }
+
+        moveInput = input;
     }
 
     public void OnJump(InputValue value)
     {
-        if (value.isPressed && isGrounded)  // Chỉ nhảy khi chạm đất
+        if (value.isPressed && isGrounded)
         {
+            // Luôn nhảy lên dù có đảo điều khiển
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-            isGrounded = false; // Đặt false ngay sau khi nhảy
+            isGrounded = false;
         }
     }
-
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag("Trap"))
         {
             Die();
         }
-        //if (collision.gameObject.CompareTag("Exit"))
-        //{
-        //    Destroy(gameObject);
-        //}
 
-        // Nếu chạm đất thì bật isGrounded
         if (collision.gameObject.CompareTag("Ground"))
         {
             isGrounded = true;
         }
     }
+
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.CompareTag("Trap") || other.CompareTag("Lava"))
+        if (other.CompareTag("Trap"))
         {
             Die();
         }
-    }
-    public void Die()
-    {
-        if (!isDead)
+
+        if (other.CompareTag("InvertZone"))
         {
-            isDead = true;
-            Debug.Log("Player died!");
-            OnPlayerDeath?.Invoke(); // Nếu bạn có trap muốn nhận sự kiện này
-            transform.position = checkpointPosition; // Hồi sinh tại checkpoint
-            rb.linearVelocity = Vector2.zero; // Dừng chuyển động
-            isDead = false;
+            SetControlInverted(true);
+            Debug.Log("Controls Inverted!");
+        }
+
+        if (other.CompareTag("ResetZone"))
+        {
+            SetControlInverted(false);
+            Debug.Log("Controls Reset!");
         }
     }
+
     private void OnCollisionExit2D(Collision2D collision)
     {
         if (collision.gameObject.CompareTag("Ground"))
         {
             isGrounded = false;
         }
+    }
+
+    public void Die()
+    {
+        if (!isDead)
+        {
+            isDead = true;
+            Debug.Log("Player died!");
+            OnPlayerDeath?.Invoke();
+            transform.position = checkpointPosition;
+            rb.linearVelocity = Vector2.zero;
+            isDead = false;
+        }
+    }
+
+    public void SetCheckpoint(Vector2 newCheckpoint)
+    {
+        checkpointPosition = newCheckpoint;
+    }
+
+    public void SetControlInverted(bool isInverted)
+    {
+        isControlInverted = isInverted;
+    }
+
+    private void UpdateAnimation()
+    {
+        bool isRunning = Math.Abs(rb.linearVelocity.x) > 0.1f;
+        bool isJumping = !isGrounded;
+        animator.SetBool("IsRunning", isRunning);
+        animator.SetBool("IsJumping",isJumping);
     }
 }

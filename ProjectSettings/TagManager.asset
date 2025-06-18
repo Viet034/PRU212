@@ -6,6 +6,10 @@ TagManager:
   tags:
   - Trap
   - Ground
+  - InvertZone
+  - ResetZone
+  - FakePlatform
+  - FallingWall
   layers:
   - Default
   - TransparentFX
@@ -42,6 +46,12 @@ TagManager:
   m_SortingLayers:
   - name: Default
     uniqueID: 0
+    locked: 0
+  - name: Player
+    uniqueID: 1010346053
+    locked: 0
+  - name: Ground
+    uniqueID: 4290934063
     locked: 0
   m_RenderingLayers:
   - Default
